@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end smoke test against a running `docker compose up` stack.
 # Creates a medication + a schedule due in ~1 minute, waits for the Durable timer to fire the reminder through the
-# storage queue, answers "taken" (external event), checks the loop moved on, then proves poison-queue handling.
+# storage queue, answers "taken" (external event), checks the loop moved on, then proves poison-queue handling and that the repair job restarts a terminated loop.
 set -euo pipefail
 API=${API:-http://localhost:8080/api}
 json() { python3 -c "import sys,json; d=json.load(sys.stdin); print($1)"; }
@@ -75,5 +75,27 @@ for i in $(seq 1 40); do
   sleep 3
 done
 echo "deadletters: $N"
+
+step "repair: a terminated reminder loop is restarted by the repair job, and a second run is a no-op"
+# Terminating needs the host's master key; the local host keeps it unencrypted in Azurite (never do this in Azure).
+FUNCS=${FUNCS:-http://localhost:7071}
+KEYS=$(mktemp -d)
+BLOB=$(az storage blob list -c azure-webjobs-secrets --connection-string "$CS" --only-show-errors --query "[?ends_with(name, 'host.json')].name | [0]" -o tsv)
+az storage blob download -c azure-webjobs-secrets -n "$BLOB" -f "$KEYS/host.json" --connection-string "$CS" --only-show-errors --no-progress -o none
+curl -fsS -o /dev/null -X POST "$FUNCS/runtime/webhooks/durabletask/instances/reminders-$SCH/terminate?reason=smoke&code=$(json 'd["masterKey"]["value"]' < "$KEYS/host.json")"
+rm -rf "$KEYS"
+for i in $(seq 1 20); do
+  [ "$(curl -fsS "$API/schedules/$SCH/reminders" | json 'd["runtimeStatus"]')" = Terminated ] && break
+  [ "$i" = 20 ] && { echo "FAIL: loop not terminated"; exit 1; }
+  sleep 1
+done
+curl -fsS -X POST "$API/reminders/repair" -H 'content-type: application/json' -d '{}' | json 'd["restarted"]' | grep -q "$SCH" || { echo "FAIL: not restarted"; exit 1; }
+for i in $(seq 1 20); do
+  S=$(curl -fsS "$API/schedules/$SCH/reminders" | json 'd["runtimeStatus"]')
+  [ "$S" = Running ] && break
+  [ "$i" = 20 ] && { echo "FAIL: loop not running again ($S)"; exit 1; }
+  sleep 1
+done
+echo "loop $S again; second repair restarted: $(curl -fsS -X POST "$API/reminders/repair" -H 'content-type: application/json' -d '{}' | json 'len(d["restarted"])')"
 
 echo; echo "SMOKE PASS"
