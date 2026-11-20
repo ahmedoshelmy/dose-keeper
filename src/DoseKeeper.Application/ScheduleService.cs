@@ -13,8 +13,7 @@ public sealed class ScheduleService(
     {
         _ = await medications.GetAsync(request.MedicationId, ct) ?? throw new NotFoundException($"Medication {request.MedicationId} not found.");
         var times = request.TimesOfDay.Select(ParseTime).ToList();
-        var zone = DoseSchedule.FindZone(request.TimeZone);
-        var start = request.StartDate ?? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(), zone).DateTime);
+        var start = request.StartDate ?? DoseSchedule.LocalToday(clock.GetUtcNow(), request.TimeZone);
         var schedule = DoseSchedule.Create(
             Ids.New("sch"),
             request.MedicationId,

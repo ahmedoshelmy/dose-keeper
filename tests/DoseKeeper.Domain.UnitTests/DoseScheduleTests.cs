@@ -90,6 +90,13 @@ public sealed class DoseScheduleTests
         Schedule("08:00", days: [DayOfWeek.Saturday], pills: 7).DailyUse.ShouldBe(1m);
     }
 
+    [Fact]
+    public void Local_today_rolls_over_at_cairo_midnight_not_utc_midnight()
+    {
+        // 22:30 UTC on 9 January is 00:30 on 10 January in Cairo.
+        DoseSchedule.LocalToday(Utc(2026, 1, 9, 22, 30)).ShouldBe(new DateOnly(2026, 1, 10));
+    }
+
     [Theory]
     [InlineData("", "times")]
     [InlineData("08:00", "zone")]

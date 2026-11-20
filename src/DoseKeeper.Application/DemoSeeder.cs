@@ -29,8 +29,7 @@ public sealed class DemoSeeder(
         {
             index++;
             var medication = Medication.Create($"med-demo{index}", name, strength, pills, 7);
-            var zone = DoseSchedule.FindZone(null);
-            var start = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime).AddDays(-42);
+            var start = DoseSchedule.LocalToday(now).AddDays(-42);
             var schedule = DoseSchedule.Create(
                 $"sch-demo{index}", medication.Id, times.Select(t => TimeOnly.Parse(t, CultureInfo.InvariantCulture)), null, start, null, null, 1, TimeSpan.FromMinutes(30), "caregiver@example.com");
             await medications.SaveAsync(medication, ct);

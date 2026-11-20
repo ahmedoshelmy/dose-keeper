@@ -24,7 +24,7 @@ public sealed class MedicationService(IMedicationRepository medications, ISchedu
     public async Task<IReadOnlyList<RefillForecast>> ForecastAsync(CancellationToken ct)
     {
         var allSchedules = await schedules.ListAsync(ct);
-        var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
+        var today = DoseSchedule.LocalToday(clock.GetUtcNow());
         var forecasts = (await medications.ListAsync(ct)).Select(m => RefillForecast.For(m, allSchedules, today)).ToList();
         return forecasts;
     }

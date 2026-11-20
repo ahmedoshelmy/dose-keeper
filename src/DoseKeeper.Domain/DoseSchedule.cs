@@ -154,6 +154,10 @@ public sealed class DoseSchedule
         return new DateTimeOffset(local, offset).ToUniversalTime();
     }
 
+    /// <summary>Calendar date in the given zone (default Africa/Cairo); "today" for the user, not for UTC.</summary>
+    public static DateOnly LocalToday(DateTimeOffset utcNow, string? timeZoneId = null) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(utcNow, FindZone(timeZoneId)).DateTime);
+
     public static TimeZoneInfo FindZone(string? timeZoneId)
     {
         try

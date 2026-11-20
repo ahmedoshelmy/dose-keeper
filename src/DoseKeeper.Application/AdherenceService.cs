@@ -13,7 +13,7 @@ public sealed class AdherenceService(
     /// <summary>Weeks start on Saturday, as the work week does in Egypt.</summary>
     public static DateOnly WeekStartOf(DateOnly date) => date.AddDays(-(((int)date.DayOfWeek - (int)DayOfWeek.Saturday + 7) % 7));
 
-    public DateOnly CurrentWeekStart() => WeekStartOf(DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime));
+    public DateOnly CurrentWeekStart() => WeekStartOf(DoseSchedule.LocalToday(clock.GetUtcNow()));
 
     public async Task<IReadOnlyList<string>> ScheduleIdsAsync(CancellationToken ct) =>
         [.. (await schedules.ListAsync(ct)).Select(s => s.Id)];
