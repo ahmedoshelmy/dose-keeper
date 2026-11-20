@@ -91,6 +91,7 @@ Without Docker for the host: install Azure Functions Core Tools v4, run `azurite
 | GET | `/api/doses/today` | expanded doses with status |
 | POST | `/api/doses/take`, `/api/doses/skip` | `{ scheduleId, dueUtc }`, raises `DoseAnswered` |
 | GET | `/api/notifications` | delivered notifications (stub channel) |
+| GET | `/api/deadletters` | messages parked from the poison queue |
 | GET | `/api/refills`, POST `/api/refills/check` | forecast / run the nightly check now |
 | GET | `/api/adherence?weeks=6` | chart data |
 | POST | `/api/reports/weekly`, GET `/api/reports/weekly/{id}`, GET `/api/reports/latest` | fan-out/fan-in report |

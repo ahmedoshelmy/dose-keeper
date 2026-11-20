@@ -2,6 +2,8 @@ using System.Text.Json;
 using Azure.Data.Tables;
 using DoseKeeper.Application;
 using DoseKeeper.Infrastructure;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 
@@ -32,6 +34,26 @@ public sealed class NotificationFunctions(INotificationLog log, TableServiceClie
         var table = tables.GetTableClient(DeadLettersTable);
         await table.CreateIfNotExistsAsync(ct);
         await table.AddEntityAsync(new TableEntity("poison", Guid.NewGuid().ToString("N")) { ["Body"] = body }, ct);
+    }
+
+    /// <summary>Parked messages for an operator (newest first is not guaranteed; this is a small ops view).</summary>
+    [Function("ListDeadLetters")]
+    public async Task<IActionResult> ListDeadLetters(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "deadletters")] HttpRequest req, CancellationToken ct)
+    {
+        var table = tables.GetTableClient(DeadLettersTable);
+        await table.CreateIfNotExistsAsync(ct);
+        var bodies = new List<string>();
+        await foreach (var entity in table.QueryAsync<TableEntity>(maxPerPage: 50, cancellationToken: ct))
+        {
+            bodies.Add(entity.GetString("Body"));
+            if (bodies.Count >= 50)
+            {
+                break;
+            }
+        }
+
+        return new OkObjectResult(new { Count = bodies.Count, Bodies = bodies });
     }
 
     /// <summary>Throws on anything that is not a complete notification, so the runtime retries and then poisons it.</summary>

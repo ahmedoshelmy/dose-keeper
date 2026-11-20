@@ -58,7 +58,7 @@ step "poison queue: a malformed message is retried 3x, then parked in the deadle
 CS="UseDevelopmentStorage=true"
 az storage message put -q notifications --content "$(printf 'not json' | base64)" --connection-string "$CS" -o none --only-show-errors
 for i in $(seq 1 40); do
-  N=$(az storage entity query -t deadletters --connection-string "$CS" --only-show-errors --query 'length(items)' -o tsv 2>/dev/null || echo 0)
+  N=$(curl -fsS "$API/deadletters" | json 'd["count"]')
   [ "${N:-0}" -ge 1 ] && break
   [ "$i" = 40 ] && { echo "FAIL: nothing in deadletters"; exit 1; }
   sleep 3
