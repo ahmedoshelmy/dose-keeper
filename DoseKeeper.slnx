@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DoseKeeper.Domain/DoseKeeper.Domain.csproj" />
+    <Project Path="src/DoseKeeper.Application/DoseKeeper.Application.csproj" />
+    <Project Path="src/DoseKeeper.Infrastructure/DoseKeeper.Infrastructure.csproj" />
+    <Project Path="src/DoseKeeper.Functions/DoseKeeper.Functions.csproj" />
+  </Folder>
+</Solution>

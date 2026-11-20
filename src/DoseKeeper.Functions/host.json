@@ -1,0 +1,24 @@
+{
+  "version": "2.0",
+  "logging": {
+    "logLevel": {
+      "default": "Information",
+      "DurableTask.AzureStorage": "Warning",
+      "DurableTask.Core": "Warning",
+      "Azure.Core": "Warning"
+    }
+  },
+  "extensions": {
+    "queues": {
+      "maxDequeueCount": 3,
+      "visibilityTimeout": "00:00:05",
+      "maxPollingInterval": "00:00:02"
+    },
+    "durableTask": {
+      "hubName": "DoseKeeperHub",
+      "storageProvider": {
+        "maxQueuePollingInterval": "00:00:02"
+      }
+    }
+  }
+}

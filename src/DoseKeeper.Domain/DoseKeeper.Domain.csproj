@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>DoseKeeper.Domain</RootNamespace>
+  </PropertyGroup>
+</Project>
