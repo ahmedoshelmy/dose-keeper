@@ -81,6 +81,23 @@ public sealed class DoseReminderOrchestratorTests
     }
 
     [Fact]
+    public async Task Answer_after_the_escalation_is_accepted_and_nothing_is_marked_missed()
+    {
+        // First wait times out (escalation), the second gets the answer before its timer.
+        context.CreateTimer(Due.UtcDateTime.AddMinutes(15), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        context.CreateTimer(Due.UtcDateTime.AddMinutes(30), Arg.Any<CancellationToken>()).Returns(new TaskCompletionSource().Task);
+        context.WaitForExternalEvent<DoseAnswered>(Names.DoseAnsweredEvent, Arg.Any<CancellationToken>())
+            .Returns(new TaskCompletionSource<DoseAnswered>().Task, Task.FromResult(new DoseAnswered(Due, DoseStatus.Taken)));
+
+        var outcome = await DoseReminderOrchestrator.RunAsync(context);
+
+        outcome.ShouldBe("answered Taken");
+        await context.Received(1).CallActivityAsync<bool>(
+            nameof(ReminderActivities.SendReminder), new ReminderRequest("sch-a", Due, true), Arg.Any<TaskOptions?>());
+        await context.DidNotReceive().CallActivityAsync<bool>(nameof(ReminderActivities.MarkMissed), Arg.Any<object?>(), Arg.Any<TaskOptions?>());
+    }
+
+    [Fact]
     public async Task Dose_answered_before_the_reminder_skips_waiting()
     {
         context.CallActivityAsync<bool>(nameof(ReminderActivities.SendReminder), Arg.Any<object?>(), Arg.Any<TaskOptions?>()).Returns(false);
