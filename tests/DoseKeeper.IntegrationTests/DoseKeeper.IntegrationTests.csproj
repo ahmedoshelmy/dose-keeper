@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Testcontainers.Azurite" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DoseKeeper.Infrastructure\DoseKeeper.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

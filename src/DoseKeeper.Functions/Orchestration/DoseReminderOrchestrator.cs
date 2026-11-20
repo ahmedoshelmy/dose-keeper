@@ -81,13 +81,21 @@ public static class DoseReminderOrchestrator
             var received = await answer;
             if (received.DueUtc == dueUtc)
             {
-                await cts.CancelAsync();
+                CancelOnOrchestrationThread(cts);
                 return received;
             }
         }
 
         // Pathological stream of unrelated answers: treat as unanswered rather than loop forever.
-        await cts.CancelAsync();
+        CancelOnOrchestrationThread(cts);
         return null;
     }
+
+    /// <summary>
+    /// Cancels the pending durable timer synchronously. CancelAsync would run the callbacks on the thread pool and
+    /// resume the orchestrator off its single-threaded scheduler, which Durable Functions does not allow.
+    /// </summary>
+#pragma warning disable CA1849 // Synchronous Cancel is required inside orchestrator code.
+    private static void CancelOnOrchestrationThread(CancellationTokenSource cts) => cts.Cancel();
+#pragma warning restore CA1849
 }

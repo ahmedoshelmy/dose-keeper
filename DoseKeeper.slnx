@@ -5,4 +5,11 @@
     <Project Path="src/DoseKeeper.Infrastructure/DoseKeeper.Infrastructure.csproj" />
     <Project Path="src/DoseKeeper.Functions/DoseKeeper.Functions.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DoseKeeper.Domain.UnitTests/DoseKeeper.Domain.UnitTests.csproj" />
+    <Project Path="tests/DoseKeeper.Application.UnitTests/DoseKeeper.Application.UnitTests.csproj" />
+    <Project Path="tests/DoseKeeper.Functions.UnitTests/DoseKeeper.Functions.UnitTests.csproj" />
+    <Project Path="tests/DoseKeeper.IntegrationTests/DoseKeeper.IntegrationTests.csproj" />
+    <Project Path="tests/DoseKeeper.ArchitectureTests/DoseKeeper.ArchitectureTests.csproj" />
+  </Folder>
 </Solution>
