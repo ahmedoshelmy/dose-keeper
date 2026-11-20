@@ -6,7 +6,7 @@ Azurite and the official Functions host image.
 
 > Demo project with synthetic data. **Not medical advice** and not a medical device; never rely on it for real treatment.
 
-![Dose Keeper web page](docs/screenshot.png)
+_Screenshot coming (run `curl -X POST localhost:8080/api/demo/seed` and open http://localhost:8080 to see the page)._
 
 ## What it does
 
