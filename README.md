@@ -6,7 +6,9 @@ Azurite and the official Functions host image.
 
 > Demo project with synthetic data. **Not medical advice** and not a medical device; never rely on it for real treatment.
 
-_Screenshot coming (run `curl -X POST localhost:8080/api/demo/seed` and open http://localhost:8080 to see the page)._
+![Dose Keeper web page with synthetic demo data: today's doses, six weeks of adherence, a refill warning](docs/screenshot.png)
+
+_Synthetic demo data: `curl -X POST localhost:8080/api/demo/seed`, then open http://localhost:8080._
 
 ## What it does
 
