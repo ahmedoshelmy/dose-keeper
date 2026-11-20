@@ -162,6 +162,18 @@ public sealed class ServiceTests
         (await Adherence.LatestReportAsync(ct)).ShouldBe(report);
     }
 
+    [Fact]
+    public async Task Demo_seed_creates_six_weeks_of_history_with_one_low_stock_medication()
+    {
+        var schedules = await new DemoSeeder(store, store, store, clock).SeedAsync(ct);
+
+        schedules.Count.ShouldBe(3);
+        var history = await Adherence.HistoryAsync(6, ct);
+        history.Count.ShouldBe(6);
+        history.Take(5).ShouldAllBe(w => w.Due > 0 && w.Percent > 50m && w.Percent < 100m);
+        (await Medications.ForecastAsync(ct)).Count(f => f.NeedsRefill).ShouldBe(1);
+    }
+
     [Theory]
     [InlineData("2026-01-10", "2026-01-10")]
     [InlineData("2026-01-16", "2026-01-10")]

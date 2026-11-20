@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddScoped<ReminderService>();
         services.AddScoped<AdherenceService>();
         services.AddScoped<RefillCheckService>();
+        services.AddScoped<DemoSeeder>();
         return services;
     }
 }

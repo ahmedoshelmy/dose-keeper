@@ -62,6 +62,7 @@ Requirements: Docker (or rootless Podman with the docker CLI), .NET SDK 10, Node
 
 ```bash
 docker compose up -d --build --wait      # azurite + functions host + web
+curl -X POST localhost:8080/api/demo/seed # optional: 3 synthetic medications with 6 weeks of history
 open http://localhost:8080               # web page (API at http://localhost:7071/api)
 scripts/smoke.sh                         # end-to-end check, ~2 minutes (needs az CLI for the poison step)
 docker compose down -v
@@ -92,6 +93,7 @@ Without Docker for the host: install Azure Functions Core Tools v4, run `azurite
 | POST | `/api/doses/take`, `/api/doses/skip` | `{ scheduleId, dueUtc }`, raises `DoseAnswered` |
 | GET | `/api/notifications` | delivered notifications (stub channel) |
 | GET | `/api/deadletters` | messages parked from the poison queue |
+| POST | `/api/demo/seed` | synthetic demo data; 404 unless `DoseKeeper__EnableDemoSeed=true` |
 | GET | `/api/refills`, POST `/api/refills/check` | forecast / run the nightly check now |
 | GET | `/api/adherence?weeks=6` | chart data |
 | POST | `/api/reports/weekly`, GET `/api/reports/weekly/{id}`, GET `/api/reports/latest` | fan-out/fan-in report |

@@ -29,6 +29,7 @@ services:
       AzureWebJobsStorage: *storage
       # The Durable client binding builds management URLs from this; Azure sets it, local hosts must.
       WEBSITE_HOSTNAME: localhost:80
+      DoseKeeper__EnableDemoSeed: ${DEMO_SEED:-true}
       RefillCheckSchedule: ${REFILL_CHECK_SCHEDULE:-0 0 2 * * *}
       WeeklyReportSchedule: ${WEEKLY_REPORT_SCHEDULE:-0 0 6 * * Sat}
     ports:
