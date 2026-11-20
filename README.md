@@ -13,7 +13,7 @@ Azurite and the official Functions host image.
 - Medications with a pill count; schedules with times of day, weekdays, start/end dates and a time zone
   (default `Africa/Cairo`, DST-aware — Egypt has used summer time again since 2023).
 - At each dose time a reminder fires. No answer by half the late window → a second reminder. No answer by the end →
-  the dose is marked **missed** and an optional caregiver is alerted. Take/Skip from the web page stops the escalation.
+  the dose is marked **missed** and an optional caregiver is alerted. Take/Skip from the web page stops the escalation; Snooze restarts it later.
 - Taking a dose draws stock; a nightly timer forecasts "refill in N days" and queues a notice below the threshold.
 - Weekly adherence % (taken ÷ due, late doses flagged) as a chart, plus an on-demand fan-out/fan-in weekly report.
 
@@ -90,7 +90,8 @@ Without Docker for the host: install Azure Functions Core Tools v4, run `azurite
 | POST/GET | `/api/schedules` | create starts `reminders-{id}` orchestration |
 | GET | `/api/schedules/{id}/reminders` | Durable runtime + custom status |
 | GET | `/api/doses/today` | expanded doses with status |
-| POST | `/api/doses/take`, `/api/doses/skip` | `{ scheduleId, dueUtc }`, raises `DoseAnswered` |
+| POST | `/api/doses/take`, `/api/doses/skip` | `{ scheduleId, dueUtc }`, raises `DoseResponse` |
+| POST | `/api/doses/snooze` | `{ scheduleId, dueUtc, minutes }` (5-120), raises `DoseResponse`, max 3 per dose |
 | GET | `/api/notifications` | delivered notifications (stub channel) |
 | GET | `/api/deadletters` | messages parked from the poison queue |
 | POST | `/api/demo/seed` | synthetic demo data; 404 unless `DoseKeeper__EnableDemoSeed=true` |
@@ -102,6 +103,8 @@ Without Docker for the host: install Azure Functions Core Tools v4, run `azurite
 
 - **Human-interaction pattern**: `WaitForExternalEvent` raced with a durable timer via `Task.WhenAny`, cancel the
   loser. Two-stage escalation, then `MarkMissed` + caregiver alert. Stale answers for other doses are ignored.
+- **Snooze** is just another payload on the same `DoseResponse` event: a durable timer restarts the reminder clock
+  (still accepting Take/Skip meanwhile); a fourth snooze counts as missed. Nothing is stored for a snooze.
 - **Eternal orchestration**: `ContinueAsNew` after every dose keeps history tiny; the instance id is deterministic
   per schedule, so creating it is idempotent. Bounded loops satisfy the Durable analyzers (DURABLE0011).
 - **Determinism bug found in the live run**: `CancellationTokenSource.CancelAsync()` resumed the orchestrator on the

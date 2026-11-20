@@ -28,12 +28,26 @@ public sealed class DoseFunctions(DoseService doses, INotificationLog notificati
         [DurableClient] DurableTaskClient durable,
         CancellationToken ct) => Answer(req, durable, DoseStatus.Skipped, ct);
 
+    /// <summary>"Remind me again in N minutes": only an event to the reminder loop, nothing is stored.</summary>
+    [Function("SnoozeDose")]
+    public Task<IActionResult> Snooze(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "doses/snooze")] HttpRequest req,
+        [DurableClient] DurableTaskClient durable,
+        CancellationToken ct) => Api.Run(async () =>
+    {
+        var body = await Api.BodyAsync<SnoozeRequest>(req, ct);
+        var due = await doses.ValidateSnoozeAsync(body.ScheduleId, body.DueUtc, body.Minutes, ct);
+        await durable.RaiseEventAsync(
+            Names.ReminderInstanceId(body.ScheduleId), Names.DoseResponseEvent, new DoseResponse(due, DoseStatus.Pending, body.Minutes), ct);
+        return new AcceptedResult();
+    });
+
     [Function("RecentNotifications")]
     public Task<IActionResult> Notifications(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "notifications")] HttpRequest req, CancellationToken ct) =>
         Api.Run(async () => Api.Ok(await notifications.RecentAsync(30, ct)));
 
-    /// <summary>Stores the answer, then raises the DoseAnswered external event so the reminder loop stops escalating.</summary>
+    /// <summary>Stores the answer, then raises the DoseResponse external event so the reminder loop stops escalating.</summary>
     private Task<IActionResult> Answer(HttpRequest req, DurableTaskClient durable, DoseStatus status, CancellationToken ct) => Api.Run(async () =>
     {
         var body = await Api.BodyAsync<AnswerRequest>(req, ct);
@@ -41,7 +55,7 @@ public sealed class DoseFunctions(DoseService doses, INotificationLog notificati
         try
         {
             await durable.RaiseEventAsync(
-                Names.ReminderInstanceId(body.ScheduleId), Names.DoseAnsweredEvent, new DoseAnswered(recorded.DueUtc, recorded.Status), ct);
+                Names.ReminderInstanceId(body.ScheduleId), Names.DoseResponseEvent, new DoseResponse(recorded.DueUtc, recorded.Status), ct);
         }
         catch (InvalidOperationException ex)
         {

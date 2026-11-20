@@ -36,20 +36,20 @@ public sealed class DoseReminderOrchestratorTests
     private void AnswerTimersNeverElapse() =>
         context.CreateTimer(Arg.Is<DateTime>(d => d > Due.UtcDateTime), Arg.Any<CancellationToken>()).Returns(new TaskCompletionSource().Task);
 
-    private void UserAnswers(params DoseAnswered[] answers)
+    private void UserAnswers(params DoseResponse[] answers)
     {
         var tasks = answers.Select(Task.FromResult).ToArray();
-        context.WaitForExternalEvent<DoseAnswered>(Names.DoseAnsweredEvent, Arg.Any<CancellationToken>()).Returns(tasks[0], tasks[1..]);
+        context.WaitForExternalEvent<DoseResponse>(Names.DoseResponseEvent, Arg.Any<CancellationToken>()).Returns(tasks[0], tasks[1..]);
     }
 
     private void UserNeverAnswers() =>
-        context.WaitForExternalEvent<DoseAnswered>(Names.DoseAnsweredEvent, Arg.Any<CancellationToken>()).Returns(new TaskCompletionSource<DoseAnswered>().Task);
+        context.WaitForExternalEvent<DoseResponse>(Names.DoseResponseEvent, Arg.Any<CancellationToken>()).Returns(new TaskCompletionSource<DoseResponse>().Task);
 
     [Fact]
     public async Task Answer_after_first_reminder_stops_escalation_and_continues_as_new()
     {
         AnswerTimersNeverElapse();
-        UserAnswers(new DoseAnswered(Due, DoseStatus.Taken));
+        UserAnswers(new DoseResponse(Due, DoseStatus.Taken));
 
         var outcome = await DoseReminderOrchestrator.RunAsync(context);
 
@@ -86,8 +86,8 @@ public sealed class DoseReminderOrchestratorTests
         // First wait times out (escalation), the second gets the answer before its timer.
         context.CreateTimer(Due.UtcDateTime.AddMinutes(15), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         context.CreateTimer(Due.UtcDateTime.AddMinutes(30), Arg.Any<CancellationToken>()).Returns(new TaskCompletionSource().Task);
-        context.WaitForExternalEvent<DoseAnswered>(Names.DoseAnsweredEvent, Arg.Any<CancellationToken>())
-            .Returns(new TaskCompletionSource<DoseAnswered>().Task, Task.FromResult(new DoseAnswered(Due, DoseStatus.Taken)));
+        context.WaitForExternalEvent<DoseResponse>(Names.DoseResponseEvent, Arg.Any<CancellationToken>())
+            .Returns(new TaskCompletionSource<DoseResponse>().Task, Task.FromResult(new DoseResponse(Due, DoseStatus.Taken)));
 
         var outcome = await DoseReminderOrchestrator.RunAsync(context);
 
@@ -98,6 +98,52 @@ public sealed class DoseReminderOrchestratorTests
     }
 
     [Fact]
+    public async Task Snooze_restarts_the_reminder_clock_after_a_durable_timer()
+    {
+        AnswerTimersElapse();
+        context.WaitForExternalEvent<DoseResponse>(Names.DoseResponseEvent, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new DoseResponse(Due, DoseStatus.Pending, 10)), new TaskCompletionSource<DoseResponse>().Task);
+
+        var outcome = await DoseReminderOrchestrator.RunAsync(context);
+
+        outcome.ShouldBe("missed");
+        await context.Received(1).CreateTimer(Due.UtcDateTime.AddMinutes(10), Arg.Any<CancellationToken>());
+        // After the snooze: remind again, escalate 15 minutes later, give up 30 minutes later.
+        await context.Received(1).CreateTimer(Due.UtcDateTime.AddMinutes(25), Arg.Any<CancellationToken>());
+        await context.Received(1).CreateTimer(Due.UtcDateTime.AddMinutes(40), Arg.Any<CancellationToken>());
+        await context.Received(2).CallActivityAsync<bool>(
+            nameof(ReminderActivities.SendReminder), new ReminderRequest("sch-a", Due, false), Arg.Any<TaskOptions?>());
+    }
+
+    [Fact]
+    public async Task Taking_the_dose_while_snoozed_ends_the_turn_without_another_reminder()
+    {
+        AnswerTimersNeverElapse();
+        context.WaitForExternalEvent<DoseResponse>(Names.DoseResponseEvent, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new DoseResponse(Due, DoseStatus.Pending, 10)), Task.FromResult(new DoseResponse(Due, DoseStatus.Taken)));
+
+        var outcome = await DoseReminderOrchestrator.RunAsync(context);
+
+        outcome.ShouldBe("answered Taken");
+        await context.Received(1).CallActivityAsync<bool>(nameof(ReminderActivities.SendReminder), Arg.Any<object?>(), Arg.Any<TaskOptions?>());
+    }
+
+    [Fact]
+    public async Task Snoozing_more_than_the_limit_counts_as_missed()
+    {
+        AnswerTimersElapse();
+        context.WaitForExternalEvent<DoseResponse>(Names.DoseResponseEvent, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new DoseResponse(Due, DoseStatus.Pending, 5)));
+
+        var outcome = await DoseReminderOrchestrator.RunAsync(context);
+
+        outcome.ShouldBe("missed");
+        await context.Received(DoseReminderOrchestrator.MaxSnoozes + 1).CallActivityAsync<bool>(
+            nameof(ReminderActivities.SendReminder), new ReminderRequest("sch-a", Due, false), Arg.Any<TaskOptions?>());
+        await context.Received(1).CallActivityAsync<bool>(nameof(ReminderActivities.MarkMissed), new DoseRef("sch-a", Due), Arg.Any<TaskOptions?>());
+    }
+
+    [Fact]
     public async Task Dose_answered_before_the_reminder_skips_waiting()
     {
         context.CallActivityAsync<bool>(nameof(ReminderActivities.SendReminder), Arg.Any<object?>(), Arg.Any<TaskOptions?>()).Returns(false);
@@ -105,7 +151,7 @@ public sealed class DoseReminderOrchestratorTests
         var outcome = await DoseReminderOrchestrator.RunAsync(context);
 
         outcome.ShouldBe("answered");
-        _ = context.DidNotReceive().WaitForExternalEvent<DoseAnswered>(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        _ = context.DidNotReceive().WaitForExternalEvent<DoseResponse>(Arg.Any<string>(), Arg.Any<CancellationToken>());
         context.Received(1).ContinueAsNew(Arg.Any<object?>(), false);
     }
 
@@ -113,7 +159,7 @@ public sealed class DoseReminderOrchestratorTests
     public async Task A_stale_answer_for_another_dose_is_ignored()
     {
         AnswerTimersNeverElapse();
-        UserAnswers(new DoseAnswered(Due.AddDays(-1), DoseStatus.Taken), new DoseAnswered(Due, DoseStatus.Skipped));
+        UserAnswers(new DoseResponse(Due.AddDays(-1), DoseStatus.Taken), new DoseResponse(Due, DoseStatus.Skipped));
 
         var outcome = await DoseReminderOrchestrator.RunAsync(context);
 

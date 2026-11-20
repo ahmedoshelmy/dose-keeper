@@ -14,8 +14,9 @@ workflow state (which step, which deadline, was it answered) has to be stored an
 ## Decision
 One **eternal Durable Functions orchestration** per schedule (`reminders-{scheduleId}`):
 durable timer → `SendReminder` activity → `WaitForExternalEvent("DoseAnswered")` raced against a durable timer
-(human-interaction pattern) → escalation → `MarkMissed` → `ContinueAsNew`. The HTTP API raises the event when the
-user taps Take/Skip. The weekly adherence report is a **fan-out/fan-in** orchestration (one activity per schedule).
+(human-interaction pattern) → escalation → `MarkMissed` → `ContinueAsNew`. Snooze is a payload on the same
+event that restarts the clock after a durable timer (bounded to 3 per dose). The HTTP API raises the event when the
+user taps Take/Skip/Snooze. The weekly adherence report is a **fan-out/fan-in** orchestration (one activity per schedule).
 Activities stay thin and call application services, so all decisions are unit-testable without the host.
 
 ## Consequences

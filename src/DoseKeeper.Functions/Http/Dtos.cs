@@ -36,3 +36,5 @@ public sealed record ScheduleDto(
 public sealed record RefillRequest(int Pills);
 
 public sealed record AnswerRequest(string ScheduleId, DateTimeOffset DueUtc);
+
+public sealed record SnoozeRequest(string ScheduleId, DateTimeOffset DueUtc, int Minutes);

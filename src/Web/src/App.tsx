@@ -55,6 +55,9 @@ export default function App() {
           {groups.due.map((dose) => (
             <DoseRow key={dose.scheduleId + dose.dueUtc} dose={dose}>
               <button onClick={() => act(() => api.take(dose))}>Take</button>
+              <button className="secondary" onClick={() => act(() => api.snooze(dose, 10))}>
+                Snooze 10m
+              </button>
               <button className="secondary" onClick={() => act(() => api.skip(dose))}>
                 Skip
               </button>

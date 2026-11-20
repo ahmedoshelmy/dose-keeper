@@ -73,6 +73,7 @@ export const api = {
   notifications: () => request<Notification[]>('notifications'),
   take: (dose: Dose) => post('doses/take', { scheduleId: dose.scheduleId, dueUtc: dose.dueUtc }),
   skip: (dose: Dose) => post('doses/skip', { scheduleId: dose.scheduleId, dueUtc: dose.dueUtc }),
+  snooze: (dose: Dose, minutes: number) => post('doses/snooze', { scheduleId: dose.scheduleId, dueUtc: dose.dueUtc, minutes }),
   addMedication: (name: string, strength: string, pillsOnHand: number, refillThresholdDays: number) =>
     post<Medication>('medications', { name, strength, pillsOnHand, refillThresholdDays }),
   addSchedule: (schedule: NewSchedule) => post('schedules', schedule),

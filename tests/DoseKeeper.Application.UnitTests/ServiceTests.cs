@@ -174,6 +174,18 @@ public sealed class ServiceTests
         (await Medications.ForecastAsync(ct)).Count(f => f.NeedsRefill).ShouldBe(1);
     }
 
+    [Fact]
+    public async Task Snooze_is_allowed_only_for_an_open_scheduled_dose_and_a_sane_duration()
+    {
+        var schedule = await SeedAsync();
+
+        (await Doses.ValidateSnoozeAsync(schedule.Id, Morning, 10, ct)).ShouldBe(Morning);
+        await Should.ThrowAsync<DomainException>(() => Doses.ValidateSnoozeAsync(schedule.Id, Morning, 1, ct));
+        await Should.ThrowAsync<DomainException>(() => Doses.ValidateSnoozeAsync(schedule.Id, Morning.AddMinutes(3), 10, ct));
+        await Doses.AnswerAsync(schedule.Id, Morning, DoseStatus.Taken, ct);
+        await Should.ThrowAsync<DomainException>(() => Doses.ValidateSnoozeAsync(schedule.Id, Morning, 10, ct));
+    }
+
     [Theory]
     [InlineData("2026-01-10", "2026-01-10")]
     [InlineData("2026-01-16", "2026-01-10")]

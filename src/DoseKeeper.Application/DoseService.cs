@@ -79,4 +79,27 @@ public sealed class DoseService(
 
         return doseEvent;
     }
+
+    /// <summary>A snooze is only valid for a scheduled, still unanswered dose, for 5 to 120 minutes.</summary>
+    public async Task<DateTimeOffset> ValidateSnoozeAsync(string scheduleId, DateTimeOffset dueUtc, int minutes, CancellationToken ct)
+    {
+        if (minutes is < 5 or > 120)
+        {
+            throw new DomainException("Snooze for 5 to 120 minutes.");
+        }
+
+        var schedule = await schedules.GetAsync(scheduleId, ct) ?? throw new NotFoundException($"Schedule {scheduleId} not found.");
+        dueUtc = dueUtc.ToUniversalTime();
+        if (!schedule.OccurrencesBetween(dueUtc, dueUtc.AddTicks(1)).Any())
+        {
+            throw new DomainException("That time is not a scheduled dose.");
+        }
+
+        if (await events.GetAsync(scheduleId, dueUtc, ct) is { Status: not DoseStatus.Pending })
+        {
+            throw new DomainException("That dose is already settled.");
+        }
+
+        return dueUtc;
+    }
 }

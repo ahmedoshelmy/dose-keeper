@@ -27,8 +27,18 @@ for i in $(seq 1 60); do
 done
 curl -fsS "$API/notifications" | json "[n['kind']+': '+n['text'] for n in d if n.get('scheduleId')=='$SCH']"
 
-step "take the dose (raises DoseAnswered on the orchestration)"
+step "snooze 5 minutes (external event; the loop waits on a durable timer but still accepts an answer)"
 DUE=$(curl -fsS "$API/doses/today" | json "[x['dueUtc'] for x in d if x['scheduleId']=='$SCH'][0]")
+curl -fsS -o /dev/null -w '%{http_code}\n' -X POST "$API/doses/snooze" -H 'content-type: application/json' \
+  -d "{\"scheduleId\":\"$SCH\",\"dueUtc\":\"$DUE\",\"minutes\":5}"
+for i in $(seq 1 15); do
+  curl -fsS "$API/schedules/$SCH/reminders" | grep -q 'snoozed until' && break
+  [ "$i" = 15 ] && { echo "FAIL: not snoozed"; exit 1; }
+  sleep 2
+done
+curl -fsS "$API/schedules/$SCH/reminders" | json 'd["customStatus"]'
+
+step "take the dose (raises DoseResponse on the orchestration)"
 curl -fsS -X POST "$API/doses/take" -H 'content-type: application/json' -d "{\"scheduleId\":\"$SCH\",\"dueUtc\":\"$DUE\"}" | json 'd["status"]'
 for i in $(seq 1 20); do
   STATUS=$(curl -fsS "$API/schedules/$SCH/reminders")
@@ -39,6 +49,7 @@ done
 echo "$STATUS" | json 'd["runtimeStatus"]+" / "+d["customStatus"]'
 curl -fsS "$API/doses/today" | json "[x['status'] for x in d if x['scheduleId']=='$SCH']"
 curl -fsS "$API/medications" | json "[m['pillsOnHand'] for m in d if m['id']=='$MED']"
+echo "snooze on a settled dose is rejected: $(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/doses/snooze" -H 'content-type: application/json' -d "{\"scheduleId\":\"$SCH\",\"dueUtc\":\"$DUE\",\"minutes\":5}")"
 
 step "refill forecast + on-demand refill check (same code as the nightly timer)"
 curl -fsS "$API/refills" | json "[f for f in d if f['medicationId']=='$MED']"

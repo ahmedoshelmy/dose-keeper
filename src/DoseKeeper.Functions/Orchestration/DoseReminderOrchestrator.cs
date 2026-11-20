@@ -1,4 +1,5 @@
 using DoseKeeper.Application;
+using DoseKeeper.Domain;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.DurableTask;
 
@@ -6,13 +7,15 @@ namespace DoseKeeper.Functions.Orchestration;
 
 /// <summary>
 /// Eternal orchestration, one instance per schedule ("reminders-{scheduleId}").
-/// Each turn: durable timer until the next dose, remind, wait for the user's answer (human-interaction pattern);
-/// no answer by half the late window: remind again; none by the end of it: mark missed and alert the caregiver.
+/// Each turn: durable timer until the next dose, remind, wait for the user's response (human-interaction pattern);
+/// no response by half the late window: remind again; none by the end of it: mark missed and alert the caregiver.
+/// "Snooze N minutes" restarts that clock after a durable timer (at most <see cref="MaxSnoozes"/> times).
 /// Then ContinueAsNew so the history stays small forever.
 /// </summary>
 public static class DoseReminderOrchestrator
 {
-    private const int MaxAnswersPerWait = 10;
+    public const int MaxSnoozes = 3;
+    private const int MaxResponsesPerWait = 10;
 
     [Function(nameof(DoseReminderOrchestrator))]
     public static async Task<string> RunAsync([OrchestrationTrigger] TaskOrchestrationContext context)
@@ -36,49 +39,77 @@ public static class DoseReminderOrchestrator
 
     private static async Task<string> HandleDoseAsync(TaskOrchestrationContext context, NextDose next)
     {
-        var dose = new DoseRef(next.ScheduleId, next.DueUtc);
-        if (!await context.CallActivityAsync<bool>(nameof(ReminderActivities.SendReminder), new ReminderRequest(next.ScheduleId, next.DueUtc, false)))
+        var start = next.DueUtc.UtcDateTime;
+        for (var snoozes = 0; snoozes <= MaxSnoozes; snoozes++)
         {
-            return "answered";
+            var response = await RemindAndWaitAsync(context, next, start);
+            switch (response)
+            {
+                case { Status: DoseStatus.Taken or DoseStatus.Skipped }:
+                    return $"answered {response.Status}";
+                case { SnoozeMinutes: > 0 } when snoozes < MaxSnoozes:
+                    start = context.CurrentUtcDateTime.AddMinutes(response.SnoozeMinutes.Value);
+                    context.SetCustomStatus($"snoozed until {start:O} {next.DueUtc:O}");
+                    // The user may still take or skip the dose while it is snoozed.
+                    if (await WaitForResponseAsync(context, next.DueUtc, start) is { Status: DoseStatus.Taken or DoseStatus.Skipped } early)
+                    {
+                        return $"answered {early.Status}";
+                    }
+
+                    continue;
+                case { Status: DoseStatus.Pending, SnoozeMinutes: null }:
+                    // Activities found the dose already answered (e.g. taken before the reminder fired).
+                    return "answered";
+                default:
+                    // Timed out, or one snooze too many: the dose counts as missed.
+                    var marked = await context.CallActivityAsync<bool>(nameof(ReminderActivities.MarkMissed), new DoseRef(next.ScheduleId, next.DueUtc));
+                    return marked ? "missed" : "answered";
+            }
         }
 
-        var escalateAfter = TimeSpan.FromSeconds(next.EscalateAfterSeconds);
-        if (await WaitForAnswerAsync(context, next.DueUtc, escalateAfter) is { } first)
+        return "answered";
+    }
+
+    /// <summary>
+    /// Reminder, wait until half the window, second reminder, wait until the end. Returns the user's response, a
+    /// "Pending, no snooze" marker when the dose was already answered, or null on timeout.
+    /// </summary>
+    private static async Task<DoseResponse?> RemindAndWaitAsync(TaskOrchestrationContext context, NextDose next, DateTime start)
+    {
+        var answeredAlready = new DoseResponse(next.DueUtc, DoseStatus.Pending, null);
+        if (!await context.CallActivityAsync<bool>(nameof(ReminderActivities.SendReminder), new ReminderRequest(next.ScheduleId, next.DueUtc, false)))
         {
-            return $"answered {first.Status}";
+            return answeredAlready;
+        }
+
+        if (await WaitForResponseAsync(context, next.DueUtc, start.AddSeconds(next.EscalateAfterSeconds)) is { } first)
+        {
+            return first;
         }
 
         if (!await context.CallActivityAsync<bool>(nameof(ReminderActivities.SendReminder), new ReminderRequest(next.ScheduleId, next.DueUtc, true)))
         {
-            return "answered";
+            return answeredAlready;
         }
 
-        var rest = TimeSpan.FromSeconds(next.LateWindowSeconds) - escalateAfter;
-        if (await WaitForAnswerAsync(context, next.DueUtc, rest) is { } second)
-        {
-            return $"answered {second.Status}";
-        }
-
-        var marked = await context.CallActivityAsync<bool>(nameof(ReminderActivities.MarkMissed), dose);
-        return marked ? "missed" : "answered";
+        return await WaitForResponseAsync(context, next.DueUtc, start.AddSeconds(next.LateWindowSeconds));
     }
 
-    /// <summary>Waits for an answer to this dose until the deadline; answers to other doses (stale or early) are ignored.</summary>
-    internal static async Task<DoseAnswered?> WaitForAnswerAsync(TaskOrchestrationContext context, DateTimeOffset dueUtc, TimeSpan timeout)
+    /// <summary>Waits for a response to this dose until the deadline; responses about other doses (stale or early) are ignored.</summary>
+    internal static async Task<DoseResponse?> WaitForResponseAsync(TaskOrchestrationContext context, DateTimeOffset dueUtc, DateTime deadline)
     {
-        var deadline = context.CurrentUtcDateTime + timeout;
         using var cts = new CancellationTokenSource();
         var timer = context.CreateTimer(deadline, cts.Token);
-        for (var answers = 0; answers < MaxAnswersPerWait; answers++)
+        for (var responses = 0; responses < MaxResponsesPerWait; responses++)
         {
-            var answer = context.WaitForExternalEvent<DoseAnswered>(Names.DoseAnsweredEvent, cts.Token);
-            var winner = await Task.WhenAny(answer, timer);
+            var response = context.WaitForExternalEvent<DoseResponse>(Names.DoseResponseEvent, cts.Token);
+            var winner = await Task.WhenAny(response, timer);
             if (winner == timer)
             {
                 return null;
             }
 
-            var received = await answer;
+            var received = await response;
             if (received.DueUtc == dueUtc)
             {
                 CancelOnOrchestrationThread(cts);
@@ -86,7 +117,7 @@ public static class DoseReminderOrchestrator
             }
         }
 
-        // Pathological stream of unrelated answers: treat as unanswered rather than loop forever.
+        // Pathological stream of unrelated responses: treat as unanswered rather than loop forever.
         CancelOnOrchestrationThread(cts);
         return null;
     }

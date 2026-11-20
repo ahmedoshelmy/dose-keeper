@@ -11,8 +11,11 @@ public sealed record ReminderRequest(string ScheduleId, DateTimeOffset DueUtc, b
 
 public sealed record DoseRef(string ScheduleId, DateTimeOffset DueUtc);
 
-/// <summary>Payload of the external event the HTTP API raises when the user answers a dose.</summary>
-public sealed record DoseAnswered(DateTimeOffset DueUtc, DoseStatus Status);
+/// <summary>
+/// Payload of the external event the HTTP API raises when the user responds to a dose: Taken/Skipped, or a snooze
+/// (Status Pending with SnoozeMinutes set).
+/// </summary>
+public sealed record DoseResponse(DateTimeOffset DueUtc, DoseStatus Status, int? SnoozeMinutes = null);
 
 public sealed record WeeklyReportInput(DateOnly WeekStart);
 
@@ -20,7 +23,7 @@ public sealed record ScheduleWeek(string ScheduleId, DateOnly WeekStart);
 
 public static class Names
 {
-    public const string DoseAnsweredEvent = "DoseAnswered";
+    public const string DoseResponseEvent = "DoseResponse";
 
     public static string ReminderInstanceId(string scheduleId) => $"reminders-{scheduleId}";
 }
