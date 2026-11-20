@@ -4,6 +4,7 @@
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
     "RefillCheckSchedule": "0 0 2 * * *",
-    "WeeklyReportSchedule": "0 0 6 * * Sat"
+    "WeeklyReportSchedule": "0 0 6 * * Sat",
+    "ReminderRepairSchedule": "0 */15 * * * *"
   }
 }

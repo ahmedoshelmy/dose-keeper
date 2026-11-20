@@ -32,6 +32,7 @@ services:
       DoseKeeper__EnableDemoSeed: ${DEMO_SEED:-true}
       RefillCheckSchedule: ${REFILL_CHECK_SCHEDULE:-0 0 2 * * *}
       WeeklyReportSchedule: ${WEEKLY_REPORT_SCHEDULE:-0 0 6 * * Sat}
+      ReminderRepairSchedule: ${REMINDER_REPAIR_SCHEDULE:-0 */15 * * * *}
     ports:
       - "7071:80"
     depends_on:

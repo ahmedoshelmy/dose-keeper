@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.AddScoped<AdherenceService>();
         services.AddScoped<RefillCheckService>();
         services.AddScoped<DemoSeeder>();
+        services.AddScoped<ReminderLoopRepairService>();
         return services;
     }
 }

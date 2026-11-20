@@ -93,6 +93,7 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'APPLICATIONINSIGHTS_AUTHENTICATION_STRING', value: 'Authorization=AAD' }
         { name: 'RefillCheckSchedule', value: '0 0 2 * * *' }
         { name: 'WeeklyReportSchedule', value: '0 0 6 * * Sat' }
+        { name: 'ReminderRepairSchedule', value: '0 */15 * * * *' }
       ]
     }
     functionAppConfig: {
