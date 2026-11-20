@@ -1,5 +1,12 @@
 # Dose Keeper
 
+[![CI](https://github.com/ahmedoshelmy/dose-keeper/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmedoshelmy/dose-keeper/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![Azure Functions](https://img.shields.io/badge/Azure_Functions-Durable-0062AD?logo=azurefunctions&logoColor=white)](https://learn.microsoft.com/azure/azure-functions/durable/)
+
+Part of the [systems portfolio](https://github.com/ahmedoshelmy/systems-portfolio).
+
 Medication schedules, dose check-ins, refill forecasts and **escalating reminders**, built **serverless** on
 Azure Functions (.NET 10 isolated worker) with **Durable Functions** — and runnable 100% locally for free with
 Azurite and the official Functions host image.
