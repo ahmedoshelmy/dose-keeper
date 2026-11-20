@@ -16,6 +16,8 @@ _Screenshot coming (run `curl -X POST localhost:8080/api/demo/seed` and open htt
   the dose is marked **missed** and an optional caregiver is alerted. Take/Skip from the web page stops the escalation; Snooze restarts it later.
 - Taking a dose draws stock; a nightly timer forecasts "refill in N days" and queues a notice below the threshold.
 - Weekly adherence % (taken ÷ due, late doses flagged) as a chart, plus an on-demand fan-out/fan-in weekly report.
+- A repair timer restarts any schedule's reminder loop that is missing, failed or terminated, so reminders never
+  silently stop.
 
 ## Architecture
 
@@ -63,8 +65,8 @@ Requirements: Docker (or rootless Podman with the docker CLI), .NET SDK 10, Node
 ```bash
 docker compose up -d --build --wait      # azurite + functions host + web
 curl -X POST localhost:8080/api/demo/seed # optional: 3 synthetic medications with 6 weeks of history
-open http://localhost:8080               # web page (API at http://localhost:7071/api)
-scripts/smoke.sh                         # end-to-end check, ~2 minutes (needs az CLI for the poison step)
+# web page: http://localhost:8080 (API at http://localhost:7071/api)
+scripts/smoke.sh                         # end-to-end check, ~2 minutes (needs az CLI for the poison and repair steps)
 docker compose down -v
 ```
 
@@ -94,12 +96,13 @@ Without Docker for the host: install Azure Functions Core Tools v4, run `azurite
 | POST | `/api/doses/snooze` | `{ scheduleId, dueUtc, minutes }` (5-120), raises `DoseResponse`, max 3 per dose |
 | GET | `/api/notifications` | delivered notifications (stub channel) |
 | GET | `/api/deadletters` | messages parked from the poison queue |
+| POST | `/api/reminders/repair` | start missing / failed / terminated reminder loops now (the timer does it every 15 min) |
 | POST | `/api/demo/seed` | synthetic demo data; 404 unless `DoseKeeper__EnableDemoSeed=true` |
 | GET | `/api/refills`, POST `/api/refills/check` | forecast / run the nightly check now |
 | GET | `/api/adherence?weeks=6` | chart data |
 | POST | `/api/reports/weekly`, GET `/api/reports/weekly/{id}`, GET `/api/reports/latest` | fan-out/fan-in report |
 
-## Design notes (talking points)
+## Interview talking points
 
 - **Human-interaction pattern**: `WaitForExternalEvent` raced with a durable timer via `Task.WhenAny`, cancel the
   loser. Two-stage escalation, then `MarkMissed` + caregiver alert. Stale answers for other doses are ignored.
@@ -110,6 +113,13 @@ Without Docker for the host: install Azure Functions Core Tools v4, run `azurite
 - **Determinism bug found in the live run**: `CancellationTokenSource.CancelAsync()` resumed the orchestrator on the
   thread pool and the "answered" path silently stalled; synchronous `Cancel()` fixed it. Unit tests with a mocked
   `TaskOrchestrationContext` (NSubstitute) cover answered / escalate → missed / pre-answered / stale / ended.
+- **Self-healing reminder loops**: the HTTP call that saves a schedule then starts its orchestration; if the start
+  fails, or an instance is terminated or fails later, that schedule would never remind again. A timer
+  (`ReminderRepairSchedule`, every 15 min) lists live schedules, asks the Durable client for each loop's status and
+  restarts only Missing/Failed/Terminated ones from "now" (doses in the gap show as pending/missed, never as
+  reminders days late). Idempotent by construction: running loops are untouched and the instance id is fixed per
+  schedule. The decision lives in the Application layer behind an `IReminderLoops` port (unit-tested with a fake);
+  the Durable adapter is a 20-line class; the smoke test terminates a live loop and watches the repair revive it.
 - **Fan-out/fan-in**: weekly report runs one activity per schedule in parallel, then one save activity.
 - **Queue trigger + poison handling**: `maxDequeueCount: 3` in `host.json`; a poison-queue trigger parks bad
   messages in a `deadletters` table. The notification log is idempotent (insert, 409 = duplicate).
