@@ -158,6 +158,24 @@ Without Docker for the host: install Azure Functions Core Tools v4, run `azurite
 - **Local parity**: the official `azure-functions/dotnet-isolated:4-dotnet-isolated10.0` image + Azurite, with
   `UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite` so no account key is committed.
 
+## Status
+
+Working: the whole flow above, verified live in compose (Functions host image + Azurite) by `scripts/smoke.sh`:
+reminder, escalation to missed with a caregiver alert, take/skip/snooze, refill forecast, weekly report, poison
+messages parked in `deadletters`, and a terminated reminder loop revived by the repair timer.
+
+Known limits:
+
+- A demo with synthetic data, not a medical device. Notifications go to a stub channel (`/api/notifications`).
+- No authentication: HTTP functions are `Anonymous` for the local single-user demo; a real deployment would put
+  Easy Auth (Entra ID) or API Management in front ([ADR 0004](docs/adr/0004-serverless-cost-and-cold-starts.md)).
+- The Bicep in `infra/` is compiled in CI but has never been deployed.
+- Cold starts: after idle, the first HTTP call can take seconds on Flex Consumption (ADR 0004).
+- Table Storage has no joins, ad-hoc queries or cross-partition transactions; adherence is computed in code from
+  range queries ([ADR 0003](docs/adr/0003-table-storage.md)).
+- Azure Functions lock-in for the orchestration and trigger code; the domain and application layers are
+  host-agnostic ([ADR 0002](docs/adr/0002-durable-functions-for-reminders.md)).
+
 ## Extracted from Lingo
 
 Ideas (medications, doses, refills, snoozing reminders) come from Lingo, the author's private personal assistant.
