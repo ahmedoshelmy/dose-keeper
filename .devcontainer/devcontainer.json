@@ -1,0 +1,32 @@
+{
+  "name": "Dose Keeper",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/dotnet:2": { "version": "10.0" },
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/azure-cli:1": {},
+    "ghcr.io/jlaundry/devcontainer-features/azure-functions-core-tools:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "hostRequirements": { "cpus": 4, "memory": "8gb" },
+  "forwardPorts": [8080, 7071, 10000, 10001, 10002],
+  "portsAttributes": {
+    "8080": { "label": "Web", "onAutoForward": "openBrowser" },
+    "7071": { "label": "Functions host (/api)" },
+    "10000": { "label": "Azurite blob" },
+    "10001": { "label": "Azurite queue" },
+    "10002": { "label": "Azurite table" }
+  },
+  "otherPortsAttributes": { "onAutoForward": "silent" },
+  "postCreateCommand": "dotnet restore DoseKeeper.slnx && npm ci --prefix src/Web",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csdevkit",
+        "ms-azuretools.vscode-azurefunctions",
+        "ms-azuretools.vscode-docker",
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  }
+}

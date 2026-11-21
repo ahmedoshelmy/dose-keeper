@@ -67,6 +67,21 @@ Layers (enforced by `tests/DoseKeeper.ArchitectureTests`):
 | `DoseKeeper.Functions` | Composition root: HTTP, queue, timer triggers, orchestrators, activities. |
 | `src/Web` | React 19 + TypeScript page, polls every 10 s. |
 
+## Run in Codespaces
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/ahmedoshelmy/dose-keeper)
+
+The repo carries a dev container (`.devcontainer/`: .NET 10, Node 22, Azure CLI, Azure Functions Core Tools,
+Docker-in-Docker), so it opens as-is in GitHub Codespaces or VS Code Dev Containers and restores the NuGet and npm
+packages on create. Then one command:
+
+```bash
+docker compose up -d --build --wait
+```
+
+Open the **Web** port (8080) from the Ports tab; the Functions host is forwarded on 7071 (`/api`) and Azurite on
+10000-10002. `scripts/smoke.sh` works there as-is, since the container has the az CLI.
+
 ## Quickstart
 
 Requirements: Docker (or rootless Podman with the docker CLI), .NET SDK 10, Node 22.
