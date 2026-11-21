@@ -84,7 +84,8 @@ Open the **Web** port (8080) from the Ports tab; the Functions host is forwarded
 
 ## Quickstart
 
-Requirements: Docker (or rootless Podman with the docker CLI), .NET SDK 10, Node 22.
+Requirements: Docker (or rootless Podman with the docker CLI); the images build the code, so the .NET 10 SDK and
+Node 22 are needed only for the tests and checks below.
 
 ```bash
 docker compose up -d --build --wait      # azurite + functions host + web
